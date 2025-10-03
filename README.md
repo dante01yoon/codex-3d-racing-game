@@ -15,6 +15,14 @@ A browser-based 3D racing prototype built with Three.js. Drive a stylised sports
 - Third-person chase camera that dynamically eases behind the car for smooth framing
 - Trackside trees, neon billboards, grandstands, and alternating floodlights for a stadium vibe
 
+## Demo
+
+<video src="assets/racing_demo.mov" controls width="640">
+  Your browser does not support embedded videos. <a href="assets/racing_demo.mov">Download the clip</a> instead.
+</video>
+
+If the inline player does not appear in your viewer (some Markdown renderers ignore video tags), open `assets/racing_demo.mov` directly for the preview.
+
 ## Getting Started
 
 This project is completely static; no build tooling is required. Any modern browser with WebGL2 support should run it.
