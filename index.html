@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Codex Racing Game</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="overlay">
+      <div class="hud-header">
+        <h1>Codex Racing Game</h1>
+        <p class="hud-instructions">Use arrow keys or WASD to drive. Press R to reset car position. Press M to toggle the minimap.</p>
+      </div>
+      <div class="hud-stats">
+        <div class="hud-card">
+          <span class="hud-label">Lap</span>
+          <span id="hud-lap" class="hud-value">Lap 1</span>
+        </div>
+        <div class="hud-card">
+          <span class="hud-label">Timer</span>
+          <span id="hud-time" class="hud-value">0:00.000</span>
+        </div>
+        <div class="hud-card">
+          <span class="hud-label">Last</span>
+          <span id="hud-last" class="hud-value">--</span>
+        </div>
+        <div class="hud-card">
+          <span class="hud-label">Best</span>
+          <span id="hud-best" class="hud-value">--</span>
+        </div>
+        <div class="hud-card">
+          <span class="hud-label">Checkpoints</span>
+          <span id="hud-checkpoints" class="hud-value">0/16</span>
+        </div>
+        <div class="hud-card">
+          <span class="hud-label">Points</span>
+          <span id="hud-points" class="hud-value">0</span>
+        </div>
+      </div>
+    </div>
+    <canvas id="game-canvas"></canvas>
+    <div id="hud-minimap" class="hud-minimap visible">
+      <canvas id="minimap-canvas" width="200" height="200"></canvas>
+      <div class="minimap-label">Minimap · press M</div>
+    </div>
+    <div id="race-finish" class="race-finish hidden">
+      <div class="race-finish-panel">
+        <h2>Race Complete</h2>
+        <p class="race-summary" id="race-summary"></p>
+        <div class="race-metrics">
+          <div>
+            <span class="metric-label">Points</span>
+            <span class="metric-value" id="summary-points">0</span>
+          </div>
+          <div>
+            <span class="metric-label">Best Lap</span>
+            <span class="metric-value" id="summary-best">--</span>
+          </div>
+          <div>
+            <span class="metric-label">Last Lap</span>
+            <span class="metric-value" id="summary-last">--</span>
+          </div>
+        </div>
+        <p class="race-instructions">Press R to restart the race.</p>
+      </div>
+    </div>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

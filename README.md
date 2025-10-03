@@ -1,0 +1,56 @@
+# Codex Racing Game
+
+A browser-based 3D racing prototype built with Three.js. Drive a stylised sportscar around a looping neon-lit track, using lightweight physics and a chase camera to keep the action in focus.
+
+## Features
+
+- Three.js scene with dynamic lighting, fog, ambient mist, and shadow-capable renderer
+- Procedurally generated closed-circuit race track with glowing checkpoints, guard rails, and start markers
+- Stylised low-poly car roster with the player car plus ambient AI traffic featuring basic avoidance behaviour
+- Lap timer HUD with current/last/best splits, checkpoint tracking, and a global race countdown
+- Toggleable minimap that tracks the player and ambient traffic in real time
+- Lightweight collision response so cars bounce when they trade paint
+- Checkpoint bonuses with on-track bursts and a post-race dashboard summarising your score
+- Third-person chase camera that dynamically eases behind the car for smooth framing
+- Trackside trees, neon billboards, grandstands, and alternating floodlights for a stadium vibe
+
+## Getting Started
+
+This project is completely static; no build tooling is required. Any modern browser with WebGL2 support should run it.
+
+### Run a Local Development Server
+
+1. Open a terminal in the repository root.
+2. Start a simple HTTP server (replace `python3` with `python` on Windows if needed):
+   ```bash
+   python3 -m http.server 8000
+   ```
+3. Visit [http://localhost:8000](http://localhost:8000) and open `index.html`.
+
+Alternatively, launch the project with any static file server of your choice.
+
+## Controls
+
+- `Arrow Up` / `W`: Accelerate
+- `Arrow Down` / `S`: Brake / reverse
+- `Arrow Left` / `A`: Steer left
+- `Arrow Right` / `D`: Steer right
+- `R`: Reset to the starting grid
+- `M`: Toggle minimap visibility
+
+## Project Structure
+
+```
+.
+├── index.html        # Entry point hooking up the canvas and UI overlay
+├── styles.css        # Minimal HUD and canvas styling
+└── src
+    └── main.js       # Three.js setup, track, car definition, controls, and loop
+```
+
+## Next Steps
+
+- Introduce proper race flow: countdown, lap goals, and podium logic
+- Expand AI into competitive opponents or ghost replays with lap ghosts
+- Layer in audio (engine loops, tyre squeals, ambience) and richer VFX
+- Port to a bundler-based toolchain for asset pipelines and optimisations
