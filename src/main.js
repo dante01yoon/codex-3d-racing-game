@@ -1,4 +1,5 @@
 import * as THREE from '../vendor/three.module.js';
+import { maps, defaultMapId, getMapById } from './maps.js';
 
 // ----- DOM References -----
 let canvas = document.getElementById('game-canvas');
@@ -39,6 +40,28 @@ const finishElements = {
   summaryBest: document.getElementById('summary-best'),
   summaryLast: document.getElementById('summary-last')
 };
+
+const mapSelectElements = {
+  container: document.getElementById('map-select'),
+  options: document.getElementById('map-options')
+};
+
+let mapConfig = null;
+let trackData = null;
+let trackMesh = null;
+let trackEdges = null;
+let guardRailGroup = null;
+let treeGroup = null;
+let trackLightGroup = null;
+let ambientMist = null;
+let mapLoaded = false;
+let animationStarted = false;
+
+const billboardGroups = [];
+const grandstandGroups = [];
+let checkpointMarkers = [];
+
+const trackNormal = new THREE.Vector3();
 
 // ----- Constants -----
 const TRACK_HALF_WIDTH = 8.2;
@@ -94,38 +117,35 @@ ground.receiveShadow = true;
 scene.add(ground);
 
 // ----- Track & Environment -----
-function createTrack() {
-  const controlPoints = [
-    new THREE.Vector3(0, 0, 60),
-    new THREE.Vector3(60, 0, 70),
-    new THREE.Vector3(130, 0, 30),
-    new THREE.Vector3(120, 0, -50),
-    new THREE.Vector3(40, 0, -90),
-    new THREE.Vector3(-30, 0, -80),
-    new THREE.Vector3(-120, 0, -40),
-    new THREE.Vector3(-110, 0, 50),
-    new THREE.Vector3(-40, 0, 90)
-  ];
+function createTrack(config) {
+  const trackDef = config.track ?? {};
+  const controlPoints = (trackDef.controlPoints ?? []).map(([x, y = 0, z]) => new THREE.Vector3(x, y, z));
+  if (controlPoints.length === 0) throw new Error(`Map "${config.id}" is missing control points.`);
 
   const curve = new THREE.CatmullRomCurve3(controlPoints, true, 'catmullrom', 0.15);
-  const trackGeometry = new THREE.TubeGeometry(curve, 700, 8, 16, true);
-  trackGeometry.scale(1, 0.08, 1);
+  const tubularSegments = trackDef.tubularSegments ?? 700;
+  const radius = trackDef.radius ?? 8;
+  const trackGeometry = new THREE.TubeGeometry(curve, tubularSegments, radius, 16, true);
+  const verticalScale = trackDef.verticalScale ?? 0.08;
+  trackGeometry.scale(1, verticalScale, 1);
 
+  const materialOptions = trackDef.material ?? {};
   const trackMaterial = new THREE.MeshStandardMaterial({
-    color: 0x2c2f37,
-    metalness: 0.05,
-    roughness: 0.85,
-    emissive: 0x050607,
-    emissiveIntensity: 0.3
+    color: materialOptions.color ?? 0x2c2f37,
+    metalness: materialOptions.metalness ?? 0.05,
+    roughness: materialOptions.roughness ?? 0.85,
+    emissive: materialOptions.emissive ?? 0x050607,
+    emissiveIntensity: materialOptions.emissiveIntensity ?? 0.3
   });
 
-  const trackMesh = new THREE.Mesh(trackGeometry, trackMaterial);
-  trackMesh.receiveShadow = true;
-  scene.add(trackMesh);
+  const mesh = new THREE.Mesh(trackGeometry, trackMaterial);
+  mesh.receiveShadow = true;
+  scene.add(mesh);
 
   const edgeGeometry = new THREE.EdgesGeometry(trackGeometry, 45);
-  const edgeMaterial = new THREE.LineBasicMaterial({ color: 0xffd54f });
-  scene.add(new THREE.LineSegments(edgeGeometry, edgeMaterial));
+  const edgeMaterial = new THREE.LineBasicMaterial({ color: trackDef.edgeColor ?? 0xffd54f });
+  const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+  scene.add(edges);
 
   const checkpoints = [];
   const checkpointProgresses = [];
@@ -136,6 +156,8 @@ function createTrack() {
   }
 
   return {
+    mesh,
+    edges,
     curve,
     pointsDense: curve.getSpacedPoints(600),
     length: curve.getLength(),
@@ -144,19 +166,25 @@ function createTrack() {
   };
 }
 
-const trackData = createTrack();
-const trackNormal = new THREE.Vector3();
-
-function createGuardRails() {
+function createGuardRails(config) {
+  if (!trackData) return null;
+  const environment = config.environment ?? {};
   const guardGroup = new THREE.Group();
   const postGeom = new THREE.CylinderGeometry(0.18, 0.22, 1.4, 8);
   postGeom.translate(0, 0.7, 0);
   const postMat = new THREE.MeshStandardMaterial({ color: 0x4c4f57, metalness: 0.2, roughness: 0.6 });
-  const railMat = new THREE.MeshStandardMaterial({ color: 0xcfd8dc, metalness: 0.55, roughness: 0.25, emissive: 0x1c2632, emissiveIntensity: 0.1 });
-  const offset = TRACK_HALF_WIDTH + 1.6;
+  const railMat = new THREE.MeshStandardMaterial({
+    color: 0xcfd8dc,
+    metalness: 0.55,
+    roughness: 0.25,
+    emissive: 0x1c2632,
+    emissiveIntensity: 0.1
+  });
+  const offset = TRACK_HALF_WIDTH + (environment.guardRailOffset ?? 1.6);
+  const postCount = environment.guardRailPosts ?? 140;
 
-  for (let i = 0; i < 140; i += 1) {
-    const t = i / 140;
+  for (let i = 0; i < postCount; i += 1) {
+    const t = i / postCount;
     const point = trackData.curve.getPointAt(t);
     const tangent = trackData.curve.getTangentAt(t);
     trackNormal.set(-tangent.z, 0, tangent.x).normalize();
@@ -168,8 +196,8 @@ function createGuardRails() {
     });
   }
 
-  const railSamples = 320;
-  const railRadius = 0.18;
+  const railSamples = environment.guardRailSamples ?? 320;
+  const railRadius = environment.guardRailRadius ?? 0.18;
   [-1, 1].forEach((side) => {
     const points = [];
     for (let i = 0; i <= railSamples; i += 1) {
@@ -183,28 +211,44 @@ function createGuardRails() {
     }
     const offsetCurve = new THREE.CatmullRomCurve3(points, true, 'catmullrom', 0.1);
     const railGeom = new THREE.TubeGeometry(offsetCurve, railSamples * 2, railRadius, 6, true);
-    guardGroup.add(new THREE.Mesh(railGeom, railMat));
+    const railMesh = new THREE.Mesh(railGeom, railMat);
+    guardGroup.add(railMesh);
   });
 
   scene.add(guardGroup);
+  return guardGroup;
 }
 
-createGuardRails();
-
-function scatterTrees(count) {
+function scatterTrees(count, config) {
+  if (!trackData) return null;
+  const environment = config.environment ?? {};
   const trees = new THREE.Group();
-  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6d4c41, metalness: 0.05, roughness: 0.9 });
-  const foliageMat = new THREE.MeshStandardMaterial({ color: 0x2e7d32, metalness: 0.1, roughness: 0.7, emissive: 0x0f210f, emissiveIntensity: 0.25 });
+  const trunkMat = new THREE.MeshStandardMaterial({
+    color: environment.treeTrunkColor ?? 0x6d4c41,
+    metalness: 0.05,
+    roughness: 0.9
+  });
+  const foliageMat = new THREE.MeshStandardMaterial({
+    color: environment.treeFoliageColor ?? 0x2e7d32,
+    metalness: 0.1,
+    roughness: 0.7,
+    emissive: environment.treeFoliageEmissive ?? 0x0f210f,
+    emissiveIntensity: environment.treeFoliageEmissiveIntensity ?? 0.25
+  });
   const trunkGeom = new THREE.CylinderGeometry(0.35, 0.45, 3.6, 10);
   trunkGeom.translate(0, 1.8, 0);
 
-  for (let i = 0; i < count; i += 1) {
+  const innerOffset = environment.treeInnerOffset ?? 8;
+  const spread = environment.treeSpread ?? 34;
+  const treeCount = count ?? environment.treeCount ?? 55;
+
+  for (let i = 0; i < treeCount; i += 1) {
     const t = Math.random();
     const point = trackData.curve.getPointAt(t);
     const tangent = trackData.curve.getTangentAt(t);
     trackNormal.set(-tangent.z, 0, tangent.x).normalize();
     const side = Math.random() > 0.5 ? 1 : -1;
-    const distance = TRACK_HALF_WIDTH + 8 + Math.random() * 34;
+    const distance = TRACK_HALF_WIDTH + innerOffset + Math.random() * spread;
     const treePos = point.clone().addScaledVector(trackNormal, side * distance);
 
     const tree = new THREE.Group();
@@ -230,9 +274,8 @@ function scatterTrees(count) {
   }
 
   scene.add(trees);
+  return trees;
 }
-
-scatterTrees(55);
 function createBillboard(position, rotationY, color) {
   const group = new THREE.Group();
   const panel = new THREE.Mesh(
@@ -251,24 +294,26 @@ function createBillboard(position, rotationY, color) {
   group.position.copy(position);
   group.rotation.y = rotationY;
   scene.add(group);
+  return group;
 }
-
-createBillboard(new THREE.Vector3(40, 0, 60), Math.PI / 5, 0x2196f3);
-createBillboard(new THREE.Vector3(-80, 0, -30), -Math.PI / 3, 0xee5555);
-createBillboard(new THREE.Vector3(100, 0, -20), Math.PI / 2.2, 0x4caf50);
 
 const checkpointMaterial = new THREE.MeshStandardMaterial({ color: 0x84ffff, emissive: 0x29cfff, emissiveIntensity: 0.9, roughness: 0.2, metalness: 0.1 });
 const startMaterial = new THREE.MeshStandardMaterial({ color: 0xfff176, emissive: 0xffd54f, emissiveIntensity: 1.1, roughness: 0.25, metalness: 0.15 });
 const checkpointGeometry = new THREE.CylinderGeometry(1.2, 1.2, 0.5, 16);
-const checkpointMarkers = [];
 
-for (let i = 0; i < CHECKPOINT_COUNT; i += 1) {
-  const marker = new THREE.Mesh(checkpointGeometry, i === 0 ? startMaterial : checkpointMaterial);
-  marker.position.copy(trackData.checkpoints[i]);
-  marker.position.y = 0.1;
-  marker.receiveShadow = true;
-  scene.add(marker);
-  checkpointMarkers.push(marker);
+function buildCheckpointMarkers() {
+  checkpointMarkers.forEach((marker) => scene.remove(marker));
+  checkpointMarkers = [];
+  if (!trackData) return;
+
+  for (let i = 0; i < CHECKPOINT_COUNT; i += 1) {
+    const marker = new THREE.Mesh(checkpointGeometry, i === 0 ? startMaterial : checkpointMaterial);
+    marker.position.copy(trackData.checkpoints[i]);
+    marker.position.y = 0.1;
+    marker.receiveShadow = true;
+    scene.add(marker);
+    checkpointMarkers.push(marker);
+  }
 }
 
 function createGrandstand(progress, side) {
@@ -307,13 +352,15 @@ function createGrandstand(progress, side) {
   const lookTarget = point.clone();
   stand.lookAt(lookTarget.x, stand.position.y + 4, lookTarget.z);
   scene.add(stand);
+  return stand;
 }
 
-createGrandstand(0.05, 1);
-createGrandstand(0.28, -1);
-createGrandstand(0.62, 1);
-
-function createTrackLights() {
+function createTrackLights(config) {
+  if (!trackData) return null;
+  const environment = config.environment ?? {};
+  const lightSettings = environment.lights ?? {};
+  const count = lightSettings.count ?? 24;
+  const offsetAmount = TRACK_HALF_WIDTH + (lightSettings.offset ?? 2.4);
   const lights = new THREE.Group();
   const postMat = new THREE.MeshStandardMaterial({ color: 0x263238, metalness: 0.35, roughness: 0.6 });
   const lampMat = new THREE.MeshStandardMaterial({ color: 0xfff7d6, emissive: 0xfff9c4, emissiveIntensity: 1.2 });
@@ -321,13 +368,12 @@ function createTrackLights() {
   postGeom.translate(0, 2.2, 0);
   const lampGeom = new THREE.SphereGeometry(0.35, 14, 14);
 
-  for (let i = 0; i < 24; i += 1) {
-    const progress = i / 24;
+  for (let i = 0; i < count; i += 1) {
+    const progress = i / count;
     const point = trackData.curve.getPointAt(progress);
     const tangent = trackData.curve.getTangentAt(progress);
     trackNormal.set(-tangent.z, 0, tangent.x).normalize();
     const side = i % 2 === 0 ? 1 : -1;
-    const offset = TRACK_HALF_WIDTH + 2.4;
 
     const group = new THREE.Group();
     const post = new THREE.Mesh(postGeom, postMat);
@@ -336,30 +382,35 @@ function createTrackLights() {
     lamp.position.y = 4.4;
     pointLight.position.y = 4.4;
     group.add(post, lamp, pointLight);
-    group.position.copy(point).addScaledVector(trackNormal, side * offset);
+    group.position.copy(point).addScaledVector(trackNormal, side * offsetAmount);
     lights.add(group);
   }
 
   scene.add(lights);
+  return lights;
 }
 
-createTrackLights();
-
-function createAmbientMist() {
-  const count = 650;
+function createAmbientMist(config) {
+  const mistSettings = config.environment?.mist ?? {};
+  const count = mistSettings.count ?? 650;
   const positions = new Float32Array(count * 3);
   const colors = new Float32Array(count * 3);
+  const baseRadius = mistSettings.radius ?? 120;
+  const radiusVariance = mistSettings.radiusVariance ?? 120;
+  const baseHeight = mistSettings.baseHeight ?? 6;
+  const heightVariance = mistSettings.heightVariance ?? 18;
+  const colorTint = mistSettings.color ?? { r: 0.45, g: 0.7, b: 1 };
 
   for (let i = 0; i < count; i += 1) {
-    const radius = 120 + Math.random() * 120;
+    const radius = baseRadius + Math.random() * radiusVariance;
     const angle = Math.random() * Math.PI * 2;
     positions[i * 3] = Math.cos(angle) * radius;
-    positions[i * 3 + 1] = 6 + Math.random() * 18;
+    positions[i * 3 + 1] = baseHeight + Math.random() * heightVariance;
     positions[i * 3 + 2] = Math.sin(angle) * radius;
     const tint = 0.5 + Math.random() * 0.5;
-    colors[i * 3] = 0.45 * tint;
-    colors[i * 3 + 1] = 0.7 * tint;
-    colors[i * 3 + 2] = 1 * tint;
+    colors[i * 3] = (colorTint.r ?? 0.45) * tint;
+    colors[i * 3 + 1] = (colorTint.g ?? 0.7) * tint;
+    colors[i * 3 + 2] = (colorTint.b ?? 1) * tint;
   }
 
   const geometry = new THREE.BufferGeometry();
@@ -372,7 +423,129 @@ function createAmbientMist() {
   return mist;
 }
 
-const ambientMist = createAmbientMist();
+function disposeObject3D(object) {
+  if (!object) return;
+  object.traverse((child) => {
+    if (child.isMesh || child.isPoints || child.isLine) {
+      if (child.geometry) child.geometry.dispose();
+      const { material } = child;
+      if (Array.isArray(material)) material.forEach((mat) => mat?.dispose?.());
+      else material?.dispose?.();
+    }
+    if (child.isLight && child.shadow?.map) child.shadow.map.dispose();
+  });
+}
+
+function clearMapAssets() {
+  if (trackMesh) {
+    scene.remove(trackMesh);
+    disposeObject3D(trackMesh);
+    trackMesh = null;
+  }
+  if (trackEdges) {
+    scene.remove(trackEdges);
+    disposeObject3D(trackEdges);
+    trackEdges = null;
+  }
+  if (guardRailGroup) {
+    scene.remove(guardRailGroup);
+    disposeObject3D(guardRailGroup);
+    guardRailGroup = null;
+  }
+  if (treeGroup) {
+    scene.remove(treeGroup);
+    disposeObject3D(treeGroup);
+    treeGroup = null;
+  }
+  if (trackLightGroup) {
+    scene.remove(trackLightGroup);
+    disposeObject3D(trackLightGroup);
+    trackLightGroup = null;
+  }
+  while (billboardGroups.length) {
+    const group = billboardGroups.pop();
+    scene.remove(group);
+    disposeObject3D(group);
+  }
+  while (grandstandGroups.length) {
+    const group = grandstandGroups.pop();
+    scene.remove(group);
+    disposeObject3D(group);
+  }
+  checkpointMarkers.forEach((marker) => scene.remove(marker));
+  checkpointMarkers = [];
+  trafficCars.forEach((npc) => {
+    scene.remove(npc.mesh);
+    disposeObject3D(npc.mesh);
+  });
+  trafficCars.length = 0;
+  if (ambientMist) {
+    scene.remove(ambientMist);
+    disposeObject3D(ambientMist);
+    ambientMist = null;
+  }
+}
+
+function applyMapTheme(config) {
+  const backgroundColor = config.background ?? 0x101428;
+  scene.background = new THREE.Color(backgroundColor);
+  const fogConfig = config.fog ?? { color: 0x0d1024, near: 80, far: 260 };
+  if (!scene.fog) scene.fog = new THREE.Fog(fogConfig.color, fogConfig.near, fogConfig.far);
+  else {
+    scene.fog.color.setHex(fogConfig.color);
+    scene.fog.near = fogConfig.near;
+    scene.fog.far = fogConfig.far;
+  }
+
+  const groundConfig = config.ground ?? {};
+  if (groundConfig.color) ground.material.color.setHex(groundConfig.color);
+  if (typeof groundConfig.metalness === 'number') ground.material.metalness = groundConfig.metalness;
+  if (typeof groundConfig.roughness === 'number') ground.material.roughness = groundConfig.roughness;
+  ground.material.needsUpdate = true;
+}
+
+function vectorFromArray(position) {
+  const [x = 0, y = 0, z = 0] = position ?? [];
+  return new THREE.Vector3(x, y, z);
+}
+
+function loadMap(config) {
+  mapLoaded = false;
+  mapConfig = config;
+  clearMapAssets();
+  applyMapTheme(config);
+
+  const track = createTrack(config);
+  trackMesh = track.mesh;
+  trackEdges = track.edges;
+  trackData = track;
+
+  buildCheckpointMarkers();
+  guardRailGroup = createGuardRails(config);
+  treeGroup = scatterTrees(config.environment?.treeCount, config);
+
+  const billboardDefs = config.environment?.billboards ?? [];
+  billboardDefs.forEach((def) => {
+    const group = createBillboard(vectorFromArray(def.position), def.rotation ?? 0, def.color ?? 0xffffff);
+    billboardGroups.push(group);
+  });
+
+  const grandstandDefs = config.environment?.grandstands ?? [];
+  grandstandDefs.forEach((def) => {
+    const group = createGrandstand(def.progress ?? 0, def.side ?? 1);
+    grandstandGroups.push(group);
+  });
+
+  trackLightGroup = createTrackLights(config);
+  ambientMist = createAmbientMist(config);
+  spawnTrafficCars(config);
+
+  placeCarAtStart();
+  setupMinimap();
+  setMinimapVisibility(true);
+  updateHUD();
+  mapLoaded = true;
+}
 // ----- Car Creation -----
 function createCar({ bodyColor = 0xe53935, accentColor = 0x111111, glassColor = 0xb3e5fc } = {}) {
   const car = new THREE.Group();
@@ -471,36 +644,40 @@ const car = createCar();
 scene.add(car);
 
 const trafficCars = [];
-function spawnTrafficCars() {
-  const presets = [
+function spawnTrafficCars(config) {
+  trafficCars.forEach((npc) => scene.remove(npc.mesh));
+  trafficCars.length = 0;
+  if (!trackData) return;
+
+  const presets = config.trafficPresets ?? [
     { bodyColor: 0x29b6f6, accentColor: 0x0d47a1, laneOffset: 2.6, speed: 38, progress: 0.18 },
     { bodyColor: 0xffc107, accentColor: 0x8d6e63, laneOffset: -2.6, speed: 42, progress: 0.55 },
     { bodyColor: 0x8e24aa, accentColor: 0x5e35b1, laneOffset: 0.6, speed: 34, progress: 0.82 }
   ];
 
-  presets.forEach((preset) => {
+  presets.forEach((preset, index) => {
     const npc = createCar({ bodyColor: preset.bodyColor, accentColor: preset.accentColor, glassColor: 0xd1c4e9 });
-    npc.scale.setScalar(0.94 + Math.random() * 0.08);
+    npc.scale.setScalar((preset.scale ?? 0.94) + Math.random() * 0.08);
     scene.add(npc);
+    const lane = preset.laneOffset ?? (index % 2 === 0 ? 2.2 : -2.2);
+    const speed = preset.speed ?? 36;
     trafficCars.push({
       mesh: npc,
-      laneOffset: preset.laneOffset,
-      targetLaneOffset: preset.laneOffset,
-      baseLaneOffset: preset.laneOffset,
-      speed: preset.speed,
-      baseSpeed: preset.speed,
-      progress: preset.progress,
+      laneOffset: lane,
+      targetLaneOffset: lane,
+      baseLaneOffset: lane,
+      speed,
+      baseSpeed: speed,
+      progress: preset.progress ?? Math.random(),
       point: new THREE.Vector3(),
       tangent: new THREE.Vector3(),
       normal: new THREE.Vector3(),
-      minimapColor: `#${preset.bodyColor.toString(16).padStart(6, '0')}`,
+      minimapColor: preset.minimapColor ?? `#${preset.bodyColor.toString(16).padStart(6, '0')}`,
       velocity: new THREE.Vector3(),
       prevPosition: new THREE.Vector3()
     });
   });
 }
-
-spawnTrafficCars();
 // ----- State -----
 const carState = {
   speed: 0,
@@ -722,6 +899,7 @@ function completeLap() {
 }
 
 function placeCarAtStart() {
+  if (!trackData) return;
   const startPoint = trackData.curve.getPointAt(0);
   const startTangent = trackData.curve.getTangentAt(0);
   car.position.copy(startPoint);
@@ -748,6 +926,19 @@ function resolveBinding(key) {
 
 window.addEventListener('keydown', (event) => {
   if (event.repeat) return;
+  const mapMenuVisible = mapSelectElements.container && !mapSelectElements.container.classList.contains('hidden');
+  if (mapMenuVisible) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      hideMapSelect();
+    }
+    return;
+  }
+  if (event.key === 'l' || event.key === 'L') {
+    event.preventDefault();
+    showMapSelect();
+    return;
+  }
   if (event.key === 'm' || event.key === 'M') {
     event.preventDefault();
     setMinimapVisibility(!minimapState.enabled);
@@ -765,6 +956,8 @@ window.addEventListener('keydown', (event) => {
 });
 
 window.addEventListener('keyup', (event) => {
+  const mapMenuVisible = mapSelectElements.container && !mapSelectElements.container.classList.contains('hidden');
+  if (mapMenuVisible) return;
   const binding = resolveBinding(event.key);
   if (binding) {
     event.preventDefault();
@@ -798,7 +991,7 @@ function setMinimapVisibility(enabled) {
 }
 
 function setupMinimap() {
-  if (!minimapCanvas || !minimapCtx) return;
+  if (!minimapCanvas || !minimapCtx || !trackData) return;
   minimapState.width = minimapCanvas.width;
   minimapState.height = minimapCanvas.height;
 
@@ -831,6 +1024,7 @@ function setupMinimap() {
 setupMinimap();
 setMinimapVisibility(true);
 function recalculateCarProgress() {
+  if (!trackData) return Infinity;
   let minDistance = Infinity;
   let closestIndex = 0;
   for (let i = 0; i < trackData.pointsDense.length; i += 1) {
@@ -846,6 +1040,7 @@ function recalculateCarProgress() {
 }
 
 function updateCar(delta) {
+  if (!trackData) return;
   if (raceState.finished) {
     forwardVector.set(Math.sin(carState.heading), 0, Math.cos(carState.heading));
     carState.speed = smoothApproach(carState.speed, 0, 24, delta);
@@ -895,7 +1090,7 @@ function syncCarStateFromVelocity() {
 }
 
 function updateTraffic(delta) {
-  if (trafficCars.length === 0) return;
+  if (trafficCars.length === 0 || !trackData) return;
   const laneLimit = TRACK_HALF_WIDTH - 1.4;
 
   trafficCars.forEach((npc) => {
@@ -954,7 +1149,7 @@ function hasCrossedCheckpoint(previous, current, target) {
 }
 
 function updateLapTimer(delta) {
-  if (raceState.finished) return;
+  if (raceState.finished || !trackData) return;
   lapTracker.currentLapTime += delta;
 
   const prevProgress = lapTracker.prevProgress;
@@ -1051,6 +1246,7 @@ function resolveNpcCollision(npcA, npcB) {
 }
 
 function handleCollisions() {
+  if (!trackData) return;
   if (!raceState.finished) trafficCars.forEach(resolvePlayerNpcCollision);
   for (let i = 0; i < trafficCars.length; i += 1) {
     for (let j = i + 1; j < trafficCars.length; j += 1) {
@@ -1117,6 +1313,10 @@ updateHUD();
 function animate() {
   requestAnimationFrame(animate);
   const delta = Math.min(clock.getDelta(), 0.1);
+  if (!mapLoaded) {
+    renderer.render(scene, camera);
+    return;
+  }
   updateCar(delta);
   updateLapTimer(delta);
   updateRaceClock(delta);
@@ -1132,7 +1332,49 @@ function animate() {
   renderer.render(scene, camera);
 }
 
-animate();
+function hideMapSelect() {
+  if (mapSelectElements.container) mapSelectElements.container.classList.add('hidden');
+}
+
+function showMapSelect() {
+  if (mapSelectElements.container) mapSelectElements.container.classList.remove('hidden');
+}
+
+function startAnimationLoop() {
+  if (animationStarted) return;
+  animationStarted = true;
+  clock.start();
+  animate();
+}
+
+function selectMap(mapId) {
+  const config = getMapById(mapId);
+  loadMap(config);
+  hideMapSelect();
+  startAnimationLoop();
+}
+
+function setupMapSelection() {
+  if (!mapSelectElements.options) {
+    selectMap(defaultMapId);
+    return;
+  }
+
+  mapSelectElements.options.innerHTML = '';
+  maps.forEach((map) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'map-option';
+    if (map.id === defaultMapId) button.classList.add('default');
+    button.innerHTML = `<span class="map-name">${map.name}</span><span class="map-desc">${map.description}</span>`;
+    button.addEventListener('click', () => selectMap(map.id));
+    mapSelectElements.options.appendChild(button);
+  });
+
+  showMapSelect();
+}
+
+setupMapSelection();
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;

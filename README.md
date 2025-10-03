@@ -9,6 +9,7 @@ A browser-based 3D racing prototype built with Three.js. Drive a stylised sports
 - Stylised low-poly car roster with the player car plus ambient AI traffic featuring basic avoidance behaviour
 - Lap timer HUD with current/last/best splits, checkpoint tracking, and a global race countdown
 - Toggleable minimap that tracks the player and ambient traffic in real time
+- Modular track system with an in-game selector; define new circuits in `src/maps.js`
 - Lightweight collision response so cars bounce when they trade paint
 - Checkpoint bonuses with on-track bursts and a post-race dashboard summarising your score
 - Third-person chase camera that dynamically eases behind the car for smooth framing
@@ -26,6 +27,7 @@ This project is completely static; no build tooling is required. Any modern brow
    python3 -m http.server 8000
    ```
 3. Visit [http://localhost:8000](http://localhost:8000) and open `index.html`.
+4. Pick a circuit from the track selector overlay (press `L` later to change tracks on the fly).
 
 Alternatively, launch the project with any static file server of your choice.
 
@@ -37,15 +39,20 @@ Alternatively, launch the project with any static file server of your choice.
 - `Arrow Right` / `D`: Steer right
 - `R`: Reset to the starting grid
 - `M`: Toggle minimap visibility
+- `L`: Open the track selector
 
 ## Project Structure
 
 ```
 .
 ├── index.html        # Entry point hooking up the canvas and UI overlay
-├── styles.css        # Minimal HUD and canvas styling
-└── src
-    └── main.js       # Three.js setup, track, car definition, controls, and loop
+├── styles.css        # HUD and canvas styling
+├── src
+│   ├── main.js       # Three.js setup, game loop, cars, HUD, physics
+│   └── maps.js       # Declarative map definitions consumed by the selector
+├── vendor
+│   └── three.module.js
+└── CONTRIBUTING.md   # Guide for creating new tracks and improvements
 ```
 
 ## Next Steps
@@ -54,3 +61,7 @@ Alternatively, launch the project with any static file server of your choice.
 - Expand AI into competitive opponents or ghost replays with lap ghosts
 - Layer in audio (engine loops, tyre squeals, ambience) and richer VFX
 - Port to a bundler-based toolchain for asset pipelines and optimisations
+
+## Contributing
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for a quick primer on adding new tracks or enhancing the project.

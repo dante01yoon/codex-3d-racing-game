@@ -184,6 +184,96 @@ html, body {
   pointer-events: none;
 }
 
+.map-select {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 8, 16, 0.86);
+  backdrop-filter: blur(12px);
+  z-index: 30;
+  transition: opacity 0.25s ease;
+}
+
+.map-select.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.map-select-panel {
+  width: min(520px, 92vw);
+  background: rgba(12, 16, 28, 0.92);
+  border-radius: 18px;
+  box-shadow:
+    0 26px 48px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 1px rgba(120, 160, 255, 0.22);
+  padding: 28px 32px 36px;
+  color: #e8ecff;
+}
+
+.map-select-panel h2 {
+  margin: 0 0 12px;
+  font-size: 2rem;
+  letter-spacing: 0.04em;
+}
+
+.map-select-hint {
+  margin: 0 0 22px;
+  font-size: 0.95rem;
+  color: rgba(210, 220, 255, 0.72);
+}
+
+.map-options {
+  display: grid;
+  gap: 14px;
+}
+
+.map-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  background: rgba(18, 22, 42, 0.78);
+  border: 1px solid rgba(126, 168, 255, 0.18);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+.map-option:hover,
+.map-option:focus {
+  transform: translateY(-2px);
+  border-color: rgba(160, 200, 255, 0.45);
+  background: rgba(26, 34, 64, 0.88);
+  outline: none;
+}
+
+.map-option.default::after {
+  content: 'Recommended';
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 235, 130, 0.85);
+  background: rgba(60, 40, 12, 0.55);
+  padding: 4px 8px;
+  border-radius: 999px;
+  margin-left: auto;
+}
+
+.map-name {
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.map-desc {
+  font-size: 0.92rem;
+  color: rgba(210, 220, 255, 0.7);
+}
+
 @media (max-width: 640px) {
   #overlay {
     top: 10px;
@@ -204,5 +294,9 @@ html, body {
 
   .race-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .map-select-panel {
+    padding: 24px 22px 30px;
   }
 }
