@@ -17,6 +17,8 @@ A browser-based 3D racing prototype built with Three.js. Drive a stylised sports
 
 ## Demo
 
+[![Watch the demo](assets/racing_demo.mp4)](assets/racing_demo.mp4)
+
 <video src="assets/racing_demo.mp4" controls width="640">
   Your browser does not support embedded videos. <a href="assets/racing_demo.mov">Download the clip</a> instead.
 </video>
